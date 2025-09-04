@@ -4,7 +4,7 @@
 
 #history {
     border: round white;
-    content-align: left bottom;
+    content-align: left top;
     padding-left: 1;
     padding-right: 1;
     height: 100%;
@@ -19,6 +19,7 @@
 
 #current {
     border: round white;
+    content-align: left bottom;
     padding-left: 1;
     padding-right: 1;
     height: 100%;

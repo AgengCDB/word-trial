@@ -12,7 +12,8 @@ if not os.path.exists(data_folder):
 PyInstaller.__main__.run([
     '--name=KeyboardTrial',
     '--onefile',
-    # '--noconsole',
-    '--add-data', f'{data_folder};english_words/data', 
+    # '--clean', ### Force rebuild
+    "--add-data", "style.tcss;.",
+    # '--add-data', f'{data_folder};english_words/data', 
     'main.py',
 ])
