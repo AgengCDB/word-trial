@@ -1,0 +1,25 @@
+#grid {
+    grid-rows: 8fr auto auto;
+}
+
+#history {
+    border: round white;
+    content-align: left bottom;
+    padding-left: 1;
+    padding-right: 1;
+    height: 100%;
+}
+
+#score {
+    border: round white;
+    padding-left: 1;
+    padding-right: 1;
+    height: 100%;
+}
+
+#current {
+    border: round white;
+    padding-left: 1;
+    padding-right: 1;
+    height: 100%;
+}
