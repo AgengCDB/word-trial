@@ -10,10 +10,11 @@ if not os.path.exists(data_folder):
     raise FileNotFoundError(f"Data folder not found: {data_folder}")
 
 PyInstaller.__main__.run([
-    '--name=KeyboardTrial_v1',
+    '--name=KeyboardTrial_v1.2.0',
     '--onefile',
     # '--clean', ### Force rebuild
     "--add-data", "style.tcss;.",
     # '--add-data', f'{data_folder};english_words/data', 
-    'main.py',
+    # '--specpath', 'output/spec',
+    'main_v1.2.0.py',
 ])

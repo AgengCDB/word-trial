@@ -1,26 +1,20 @@
-#grid {
-    grid-rows: 8fr auto auto;
+#v_scrl_home {
+    align: left top;
 }
 
-#history {
-    border: round white;
-    content-align: left top;
+.btns_home {
+    margin: 1 1;
     padding-left: 1;
     padding-right: 1;
-    height: 100%;
 }
 
-#score {
-    border: round white;
-    padding-left: 1;
-    padding-right: 1;
-    height: 100%;
+#v_scrl_play {
+    align: left top;
 }
 
-#current {
-    border: round white;
-    content-align: left bottom;
+.btns_save_slot {
+    margin: 1 1;
     padding-left: 1;
     padding-right: 1;
-    height: 100%;
+    text-align: left;
 }
