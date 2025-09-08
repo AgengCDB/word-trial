@@ -2,6 +2,7 @@ import os
 import sqlite3
 
 def init_db():
+    os.makedirs("data", exist_ok=True)  # make sure folder exists
     conn = sqlite3.connect("data/data.db")
     cursor = conn.cursor()
 

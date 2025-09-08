@@ -9,7 +9,8 @@ import sqlite3
 from textual.app import App, ComposeResult
 from textual.screen import Screen
 from textual.widgets import Button, DataTable, Header, Input, Static
-from textual.containers import Grid, Horizontal, VerticalScroll
+from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
+from textual.events import Key
 
 from models import ThisRun, ThisTurn
 
@@ -43,10 +44,12 @@ class WordTrial(App):
         actions = {
             "btn_home_play": lambda: self.push_screen(PlayScreen()),
             "btn_home_quit": lambda: self.exit(),
+            "btn_exit_game_screen": lambda:self.exit_from_game_screen_to_play_screen()
         }
 
         for i in range(10):
             actions[f"save_slot_{i}"] = lambda slot=i: self.push_game_screen(save_id=slot)
+            actions[f'btn_del_save_{i}'] = lambda slot=i: self.del_this_save(save_id=slot)
 
         action = actions.get(event.button.id)
         if action:
@@ -79,7 +82,22 @@ class WordTrial(App):
             self.game_run.id = save_row['run_id']
 
         self.push_screen(GameScreen(game_run=self.game_run, game_turn=self.game_turn))
+
+    def exit_from_game_screen_to_play_screen(self):
+        self.pop_screen()              
+        self.pop_screen()
+        self.push_screen(PlayScreen()) # push a fresh one
     
+    def del_this_save(self, save_id):
+        conn = conn_db()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("UPDATE saves SET run_id = ? WHERE id = ?", (None, save_id))
+        conn.commit()
+        self.pop_screen()              # remove current PlayScreen
+        self.push_screen(PlayScreen())
+
     def __init__(self):
         super().__init__()
         self.game_run = ThisRun("dummy")
@@ -89,12 +107,15 @@ class HomeScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
 
-        yield VerticalScroll(
+        self.v_scrl_home = VerticalScroll(
             Button("Play", variant="success", classes="btns_home", id="btn_home_play"),
             Button("Settings", variant="warning", classes="btns_home", id="btn_home_settings"),
             Button("Quit", variant="error", classes="btns_home", id="btn_home_quit"),
             id="v_scrl_home"
         )
+        self.v_scrl_home.styles.align = ("left", "top")
+
+        yield self.v_scrl_home
 
 class PlayScreen(Screen):
     BINDINGS = [("escape", "app.pop_screen", "Pop screen")]
@@ -105,7 +126,6 @@ class PlayScreen(Screen):
         conn = conn_db()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-
         cursor.execute("SELECT * FROM saves")
         all_saves = cursor.fetchall()
         conn.close()
@@ -119,21 +139,45 @@ class PlayScreen(Screen):
 
             if slot_run_id is None:
                 label = f"New {default_id}"
-                btn = Button(label, id=f"save_slot_{default_id}", classes="btns_save_slot")
+                static = Static("Empty save")
+                btn_load = Button("New", id=f"save_slot_{default_id}", classes="btns_save_slot")
+                btn_del = Button("Delete", variant="error", id=f"btn_del_save_{default_id}", disabled=True)
             else:
                 if slot_last_saved:
                     last_saved_str = datetime.fromisoformat(slot_last_saved).strftime("%Y-%m-%d %H:%M")
                 else:
-                    last_saved_str = None
+                    last_saved_str = "unknown"
                 label = f"Saves {slot_run_id}\nlast saved: {last_saved_str}"
-                btn = Button(label, variant="success", id=f"save_slot_{default_id}", classes="btns_save_slot")
+                static = Static(label)
+                btn_load = Button("Load", variant="success", id=f"save_slot_{default_id}", classes="btns_save_slot")
+                btn_del = Button("Delete", variant="error", id=f"btn_del_save_{default_id}")    
 
-            buttons.append(btn)
-        yield VerticalScroll(*buttons, id="v_scrl_play")
+            row = Horizontal(
+                static,
+                btn_load,
+                btn_del,
+                classes="save_row"
+            )
 
-        return super().compose()
+            static.styles.width = "auto"
+            static.styles.margin = (0, 2, 0, 0)
+
+            btn_load.styles.margin = (0, 2, 0, 0)
+
+            row.styles.width = "1fr"
+            row.styles.border = ('round', 'gray')
+            row.border_title = f"Slot {default_id}"
+            row.styles.border_title_color = "cyan"
+            row.styles.height = "auto"
+            row.styles.padding = (0, 1, 0, 1)
+
+            buttons.append(row)
+
+        self.v_scrl_play = VerticalScroll(*buttons, id="v_scrl_play")
+        self.v_scrl_play.styles.overflow_y = "scroll"
+        yield self.v_scrl_play
     
-class GameScreen (Screen):
+class GameScreen(Screen):
     def __init__(self, game_run: ThisRun, game_turn: ThisTurn):
         super().__init__()
         self.game_run = game_run
@@ -141,20 +185,12 @@ class GameScreen (Screen):
 
     def compose(self):
         yield Header()
-
-        self.grid = Grid(id="grid")
-
-        self.turns_table = DataTable()
-        self.turns_table.add_columns("ID", "Word", "Input", "Plus", "Minus")
-
-        self.score_panel = Static("Score: 0", id="score", markup=True)
-        self.score_panel.border_title = "[cyan]Score[/cyan]"
-
-        self.current_panel = Static("Word: \nInput: ", id="current")
-
-        yield self.grid
+        
+        self.main_grid = Grid(id="grid")
+        yield self.main_grid
         
         self.input_box = Input(placeholder="Type here and press Enter...", id="input_box")
+        # self.input_box.styles.margin = (1, 0, 0, 0)
         self.input_box.focus()
 
         yield self.input_box
@@ -163,9 +199,49 @@ class GameScreen (Screen):
     
     async def on_mount(self):
         self.validate_turns()
-        self.grid.mount(self.turns_table)
-        self.grid.mount(self.score_panel)
-        self.grid.mount(self.current_panel)
+
+        self.main_grid.styles.grid_size_rows = 1
+        self.main_grid.styles.grid_size_columns = 2
+        self.main_grid.styles.grid_columns = "1fr 7fr"
+        self.main_grid.styles.grid_rows = "auto"
+        # self.main_grid.styles.margin = (0, 0, 0, 2)
+
+        # child grids
+        self.right_grid = Grid(id="right_grid")
+        self.right_grid.styles.border = ('round', 'gray')
+        self.right_grid.styles.margin = (0, 0, 2, 0)
+
+        self.left_grid = Grid(id="left_grid")
+        self.left_grid.styles.border = ('round', 'gray')
+        self.left_grid.styles.margin = (0, 0, 2, 0)
+
+        await self.main_grid.mount(self.left_grid, self.right_grid)
+
+        self.btn_save_and_exit = Button("Exit", variant="error", id='btn_exit_game_screen')
+        self.btn_save_and_exit.styles.margin = (1, 1)
+
+        await self.left_grid.mount(self.btn_save_and_exit)
+
+        # configure right grid: stack score, table, current
+        self.right_grid.styles.grid_size_rows = 3
+        self.right_grid.styles.grid_rows = "auto 1fr auto"
+
+        self.turns_table = DataTable()
+        self.turns_table.add_columns("ID", "Word", "Input", "Plus", "Minus")
+        self.turns_table.border_title = "[cyan]History[/cyan]"
+        self.turns_table.styles.border = ('round', 'white')
+
+        self.score_panel = Static("Score: 0", id="score", markup=True)
+        self.score_panel.border_title = "[cyan]Score[/cyan]"
+        self.score_panel.styles.border = ('round', 'white')
+
+        self.current_panel = Static("Word: \nInput: ", id="current")
+        self.current_panel.styles.border = ('round', 'white')
+        await self.right_grid.mount(self.turns_table, self.score_panel, self.current_panel)
+        
+    async def on_key(self, event: Key):
+        if event.key == "escape":  # user presses Esc
+            self.input_box.blur()
 
     def validate_turns(self):
         conn = conn_db()
