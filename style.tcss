@@ -1,1 +1,3 @@
-
+.btns_home {
+    margin: 1 2;
+}

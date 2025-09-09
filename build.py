@@ -16,5 +16,5 @@ PyInstaller.__main__.run([
     "--add-data", "style.tcss;.",
     # '--add-data', f'{data_folder};english_words/data', 
     # '--specpath', 'output/spec',
-    'main_v1.2.0.py',
+    'main.py',
 ])

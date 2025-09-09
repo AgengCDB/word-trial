@@ -28,7 +28,8 @@ def init_db():
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS "turns" (
-            "run_id"	INTEGER,
+            "run_id"	    INTEGER,
+            "id"            INTEGER,
             "word_to_match"	TEXT,
             "user_input"	TEXT,
             "plus_score"	INTEGER,
@@ -36,6 +37,19 @@ def init_db():
             FOREIGN KEY("run_id") REFERENCES "runs"("id")
         );
     """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS "scores" (
+            "run_id"	        INTEGER,
+            "total_word"	    INTEGER,
+            "total_letter"	    INTEGER,
+            "total_plus_score"	INTEGER,
+            "total_minus_score"	INTEGER,
+            "total_score"	    INTEGER, 
+            "run_finished"	    TEXT
+        );
+    """)
+
 
     
     
