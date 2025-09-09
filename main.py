@@ -1,16 +1,13 @@
 from datetime import datetime
-from functools import lru_cache
 from nltk.corpus import wordnet as wn
 import os
 os.system("title WordTrial v1.2.0")
-import random
 import sqlite3
 
 from textual.app import App, ComposeResult
 from textual.screen import Screen
-from textual.widgets import Button, DataTable, Header, Input, Static
-from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
-from textual.events import Key
+from textual.widgets import Button, Header, Static
+from textual.containers import Horizontal, VerticalScroll
 
 from models import ThisRun, ThisTurn
 
@@ -43,6 +40,9 @@ class WordTrial(App):
 
     def push_game_screen(self, save_id):
         conn = conn_db()
+        self.game_run.reset()
+        self.game_turn.reset()
+
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
@@ -60,16 +60,17 @@ class WordTrial(App):
                 (run_id, now, save_id)
             )
             conn.commit()
-            self.game_run.id = save_row['run_id']
+            self.game_run.id = run_id
             
             cursor.execute("UPDATE saves SET run_id = ? WHERE id = ?", (run_id, save_id))
             conn.commit()
         else:
             self.game_run.id = save_row['run_id']
-
         self.push_screen(GameScreen(game_run=self.game_run, game_turn=self.game_turn))
 
     def exit_from_game_screen_to_play_screen(self):
+        self.game_turn.reset()
+        self.game_run.reset()
         self.pop_screen()              
         self.pop_screen()
         self.push_screen(PlayScreen()) # push a fresh one
@@ -98,8 +99,8 @@ class WordTrial(App):
             for i in all_turns:
                 total_word += 1
                 total_letter += len(i['user_input'])
-                total_plus_score += i['total_plus_score']
-                total_minus_score += i['total_minus_score']
+                total_plus_score += i['plus_score']
+                total_minus_score += i['minus_score']
         
         total_score = total_plus_score + total_minus_score
 
@@ -173,6 +174,8 @@ class PlayScreen(Screen):
         all_saves = cursor.fetchall()
         conn.close()
 
+        ###TODO Change to on_mount
+        
         buttons = []
         default_id = 0
         for slot in all_saves:

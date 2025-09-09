@@ -1,4 +1,3 @@
-from datetime import datetime
 from functools import lru_cache
 from nltk.corpus import wordnet as wn
 import os
@@ -8,15 +7,14 @@ import sqlite3
 
 from rich.text import Text
 
-from textual.app import App, ComposeResult
 from textual.screen import Screen
 from textual.widgets import Button, DataTable, Header, Input, Static
-from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
+from textual.containers import Grid, VerticalScroll
 from textual.events import Key
 
 from models import ThisRun, ThisTurn
 
-from initial_function import init_db, conn_db
+from initial_function import conn_db
 
 def get_definitions(word: str):
     synsets = wn.synsets(word)[:5]
@@ -49,6 +47,23 @@ def accuracy_color(accuracy: float) -> str:
     g = max(0, min(255, g))
     return f"#{r:02x}{g:02x}00"
 
+
+def colored_word(word_to_match, user_input):
+    result = []
+
+    longest = max(len(word_to_match), len(user_input))
+    for i in range(longest):
+        char_match = word_to_match[i] if i < len(word_to_match) else None
+        char_input = user_input[i] if i < len(user_input) else None
+
+        if char_input == char_match and char_input is not None:
+            result.append(f"[green]{char_input}[/green]")
+        else:
+            wrong_char = char_input if char_input is not None else char_match
+            result.append(f"[red]{wrong_char}[/red]")
+
+    return "".join(result)
+
 class GameScreen(Screen):
     def __init__(self, game_run: ThisRun, game_turn: ThisTurn):
         super().__init__()
@@ -80,22 +95,33 @@ class GameScreen(Screen):
         self.right_grid = Grid(id="right_grid")
         self.right_grid.styles.border = ("round", 'gray')
         self.right_grid.styles.margin = (0, 0, 2, 0)
-        self.right_grid.styles.grid_size_rows = 3
-        self.right_grid.styles.grid_rows = "auto 5 auto"
+        self.right_grid.styles.grid_size_rows = 4
+        self.right_grid.styles.grid_rows = "1fr auto 5 3"
 
         self.turns_table = DataTable()
-        self.turns_table.add_columns("ID", "Word", "Input", "Plus", "Minus")
+        self.turns_table.add_columns("ID", "Word", "Plus", "Minus", "User Input")
         self.turns_table.border_title = "[cyan]History[/cyan]"
         self.turns_table.styles.border = ('round', 'white')
-        self.turns_table.styles.max_height = 10
+
+        self.defs_list = Static("")
+
+        self.defs_list_scrl = VerticalScroll(self.defs_list)
+        self.defs_list_scrl.border_title = "[cyan]Definitions[/cyan]"
+        self.defs_list_scrl.styles.align = ("left", "top")
+        self.defs_list_scrl.styles.padding = (0, 1, 0, 1)
+        self.defs_list_scrl.styles.border = ('round', 'white')
 
         self.score_panel = Static("Score: 0", id="score", markup=True)
         self.score_panel.border_title = "[cyan]Score[/cyan]"
         self.score_panel.styles.border = ('round', 'white')
+        self.score_panel.styles.padding = (0, 1, 0, 1)
         self.score_panel.styles.content_align_vertical = "bottom"
 
-        self.current_panel = Static("Word:", id="current")
+        self.current_panel = Static("", id="current")
+        self.current_panel.border_title = "[cyan]Word[/cyan]"
         self.current_panel.styles.border = ('round', 'white')
+        self.current_panel.styles.padding = (0, 1, 0, 1)
+        self.current_panel.styles.min_height = 3
         ########### END RIGHT GRID ###########
 
         
@@ -111,7 +137,7 @@ class GameScreen(Screen):
         self.validate_turns()
         await self.main_grid.mount(self.left_grid, self.right_grid)
         await self.left_grid.mount(self.btn_save_and_exit)
-        await self.right_grid.mount(self.turns_table, self.score_panel, self.current_panel)
+        await self.right_grid.mount(self.turns_table, self.defs_list_scrl, self.score_panel, self.current_panel)
         
     async def on_key(self, event: Key):
         if event.key == "escape":  # user presses Esc
@@ -126,15 +152,30 @@ class GameScreen(Screen):
             (self.game_run.id,)
         )
         last_turn = cursor.fetchone()
-        conn.close()
 
         if not last_turn:
             self.game_turn.id = 1
         else:
             self.game_turn.id = int(last_turn['id']) + 1
+
+            cursor.execute(
+                """
+                SELECT 
+                    SUM(plus_score) AS total_plus_score, 
+                    SUM(minus_score) AS total_minus_score
+                FROM turns
+                WHERE run_id = ?
+                """,
+                (self.game_run.id,)
+            )
+            totals = cursor.fetchone()
+            self.game_run.total_plus_score = totals['total_plus_score']
+            self.game_run.total_minus_score = totals['total_minus_score']
         
         self.game_turn.word_to_match = get_word()    
         self.update_turn_history_data_table()    
+        conn.close()
+
     
     def update_turn_history_data_table(self):
         conn = conn_db()
@@ -161,9 +202,9 @@ class GameScreen(Screen):
                 self.turns_table.add_row(
                     str(turn["id"]),
                     turn["word_to_match"],
-                    turn["user_input"],
-                    str(turn["plus_score"]),
-                    str(turn["minus_score"])
+                    f"[green]{turn['plus_score']}[/green]",
+                    f"[red]{turn['minus_score']}[/red]",
+                    colored_word(turn["word_to_match"], turn["user_input"]),
                 )
 
         score_text = Text()
@@ -181,9 +222,10 @@ class GameScreen(Screen):
         self.score_panel.update(score_text)
         
         defs = get_definitions(self.game_turn.word_to_match)
-        defs_text = "\n".join(f"  {i+1}. {d}" for i, d in enumerate(defs))
-        current_text = f"[gray]Definitions:[/gray]\n{defs_text}\n\n[gray]Word:[/gray] [white]{self.game_turn.word_to_match}[/white]"
-        self.current_panel.update(current_text)
+        defs_text = "\n".join(f"{i+1}. {d}" for i, d in enumerate(defs))
+        self.defs_list.update(defs_text)
+
+        self.current_panel.update(self.game_turn.word_to_match)
         
         conn.close()
     
@@ -233,8 +275,8 @@ class GameScreen(Screen):
         )
         conn.commit()
         
-        self.game_run.total_plus_score += turn.plus_score
-        self.game_run.total_minus_score += turn.minus_score
+        # self.game_run.total_plus_score += turn.plus_score
+        # self.game_run.total_minus_score += turn.minus_score
         conn.close()
     
     async def on_input_submitted(self, message: Input.Submitted):
@@ -243,7 +285,6 @@ class GameScreen(Screen):
         self.update_total_score()
         self.game_turn.reset()
 
-        self.update_turn_history_data_table()
         self.input_box.value = ""
         self.input_box.focus()
         self.validate_turns()
