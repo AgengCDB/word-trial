@@ -18,8 +18,6 @@ from GameScreen import GameScreen
 from StatsScreen import StatsScreen
 
 class WordTrial(App):
-    CSS_PATH = "style.tcss"
-
     def on_mount(self) -> None:
         self.install_screen(HomeScreen(), name="home")
         self.push_screen("home")

@@ -13,7 +13,6 @@ PyInstaller.__main__.run([
     '--name=WordTrial_v1.2.0',
     '--onefile',
     # '--clean', ### Force rebuild
-    "--add-data", "style.tcss;.",
     # '--add-data', f'{data_folder};english_words/data', 
     # '--specpath', 'output/spec',
     'main.py',
