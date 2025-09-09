@@ -15,6 +15,7 @@ from initial_function import init_db, conn_db
 init_db()
 
 from GameScreen import GameScreen
+from StatsScreen import StatsScreen
 
 class WordTrial(App):
     CSS_PATH = "style.tcss"
@@ -27,7 +28,8 @@ class WordTrial(App):
         actions = {
             "btn_home_play": lambda: self.push_screen(PlayScreen()),
             "btn_home_quit": lambda: self.exit(),
-            "btn_exit_game_screen": lambda:self.exit_from_game_screen_to_play_screen()
+            "btn_exit_game_screen": lambda:self.exit_from_game_screen_to_play_screen(),
+            "btn_home_stats": lambda: self.push_screen(StatsScreen())
         }
 
         for i in range(10):
@@ -173,8 +175,6 @@ class PlayScreen(Screen):
         cursor.execute("SELECT * FROM saves")
         all_saves = cursor.fetchall()
         conn.close()
-
-        ###TODO Change to on_mount
         
         buttons = []
         default_id = 0

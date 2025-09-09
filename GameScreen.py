@@ -4,13 +4,14 @@ import os
 os.system("title WordTrial v1.2.0")
 import random
 import sqlite3
+import sys
 
 from rich.text import Text
-
-from textual.screen import Screen
-from textual.widgets import Button, DataTable, Header, Input, Static
 from textual.containers import Grid, VerticalScroll
 from textual.events import Key
+from textual.geometry import Spacing
+from textual.screen import Screen
+from textual.widgets import Button, DataTable, Header, Input, Static
 
 from models import ThisRun, ThisTurn
 
@@ -63,6 +64,15 @@ def colored_word(word_to_match, user_input):
             result.append(f"[red]{wrong_char}[/red]")
 
     return "".join(result)
+
+async def system_error_beep():
+    """Play default OS error sound (cross-platform)."""
+    if sys.platform.startswith("win"):
+        import winsound
+        winsound.MessageBeep(winsound.MB_ICONHAND)
+    else:
+        # Terminal bell
+        print("\a", end="", flush=True)
 
 class GameScreen(Screen):
     def __init__(self, game_run: ThisRun, game_turn: ThisTurn):
@@ -278,9 +288,35 @@ class GameScreen(Screen):
         # self.game_run.total_plus_score += turn.plus_score
         # self.game_run.total_minus_score += turn.minus_score
         conn.close()
+
+    async def shake_input(self):
+        if not hasattr(self, "input_box"):
+            return
+
+        # Remember original margin
+        original = self.input_box.styles.margin
+
+        # Shake sequence
+        for offset in (-2, 2, -2, 2, 0):
+            self.input_box.styles.margin = Spacing(0, 0, 0, offset)
+            await self.input_box.animate(
+                "styles.margin",
+                self.input_box.styles.margin,
+                duration=0.05,
+            )
+
+        # Restore original margin
+        self.input_box.styles.margin = original
     
     async def on_input_submitted(self, message: Input.Submitted):
-        self.game_turn.user_input = message.value.lower().strip()
+        text = message.value.lower().strip()
+
+        if not text:
+            system_error_beep()
+            return
+
+        self.game_turn.user_input = text
+        
         self.calculate_turn_score()
         self.update_total_score()
         self.game_turn.reset()
