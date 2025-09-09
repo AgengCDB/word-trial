@@ -17,9 +17,9 @@ class StatsScreen(Screen):
             "Run ID",
             "Total Words",
             "Total Letters",
-            "Plus",
-            "Minus",
-            "Score",
+            "Plus Score",
+            "Minus Score",
+            "Total Score",
             "Finished"
         )
         self.stats_table.border_title = "[cyan]Run History[/cyan]"
